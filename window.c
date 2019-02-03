@@ -65,8 +65,7 @@ void win_init_font(const win_env_t *e, const char *fontstr)
 
 void win_alloc_color(const win_env_t *e, const char *name, XftColor *col)
 {
-	if (!XftColorAllocName(e->dpy, DefaultVisual(e->dpy, e->scr),
-	                       DefaultColormap(e->dpy, e->scr), name, col))
+	if (!XftColorAllocName(e->dpy, e->vis, e->cmap, name, col))
 	{
 		error(EXIT_FAILURE, 0, "Error allocating color '%s'", name);
 	}
@@ -133,6 +132,12 @@ void win_init(win_t *win)
 {
 	win_env_t *e;
 	const char *bg, *fg;
+	static Visual *visual = NULL;
+	XVisualInfo *vis;
+	XRenderPictFormat *fmt;
+	XVisualInfo tpl;
+	int nvi;
+	int i;
 
 	memset(win, 0, sizeof(win_t));
 
@@ -141,11 +146,32 @@ void win_init(win_t *win)
 		error(EXIT_FAILURE, 0, "Error opening X display");
 
 	e->scr = DefaultScreen(e->dpy);
+	if (options->embed != 0) {
+		tpl.screen = e->scr;
+		tpl.depth = 32;
+		tpl.class = TrueColor;
+		vis = XGetVisualInfo(e->dpy, VisualScreenMask | VisualDepthMask | VisualClassMask, &tpl, &nvi);
+		for(i = 0; i < nvi; i ++) {
+			fmt = XRenderFindVisualFormat(e->dpy, vis[i].visual);
+			if (fmt->type == PictTypeDirect && fmt->direct.alphaMask) {
+				visual = vis[i].visual;
+				break;
+			}
+		}
+		XFree(vis);
+		if (!visual)
+			error(EXIT_FAILURE, 0, "Couldn't find ARGB visual");
+		e->vis = visual;
+		e->cmap = XCreateColormap(e->dpy, RootWindow(e->dpy, e->scr), e->vis, None);
+		e->depth = tpl.depth;
+	} else {
+		e->vis = DefaultVisual(e->dpy, e->scr);
+		e->cmap = DefaultColormap(e->dpy, e->scr);
+		e->depth = DefaultDepth(e->dpy, e->scr);
+	}
+
 	e->scrw = DisplayWidth(e->dpy, e->scr);
 	e->scrh = DisplayHeight(e->dpy, e->scr);
-	e->vis = DefaultVisual(e->dpy, e->scr);
-	e->cmap = DefaultColormap(e->dpy, e->scr);
-	e->depth = DefaultDepth(e->dpy, e->scr);
 
 	if (setlocale(LC_CTYPE, "") == NULL || XSupportsLocale() == 0)
 		error(0, 0, "No locale support");
@@ -248,8 +274,7 @@ void win_open(win_t *win)
 		if (i != CURSOR_NONE)
 			cursors[i].icon = XCreateFontCursor(e->dpy, cursors[i].name);
 	}
-	if (XAllocNamedColor(e->dpy, DefaultColormap(e->dpy, e->scr), "black",
-	                     &col, &col) == 0)
+	if (XAllocNamedColor(e->dpy, e->cmap, "black", &col, &col) == 0)
 	{
 		error(EXIT_FAILURE, 0, "Error allocating color 'black'");
 	}
@@ -443,8 +468,7 @@ void win_draw_bar(win_t *win)
 	e = &win->env;
 	y = win->h + font->ascent + V_TEXT_PAD;
 	w = win->w - 2*H_TEXT_PAD;
-	d = XftDrawCreate(e->dpy, win->buf.pm, DefaultVisual(e->dpy, e->scr),
-	                  DefaultColormap(e->dpy, e->scr));
+	d = XftDrawCreate(e->dpy, win->buf.pm, e->vis, e->cmap);
 
 	if (win->fullscreen && !win->light)
 		bg = &win->bg, fg = &win->fg;
@@ -527,4 +551,3 @@ void win_cursor_pos(win_t *win, int *x, int *y)
 	if (!XQueryPointer(win->env.dpy, win->xwin, &w, &w, &i, &i, x, y, &ui))
 		*x = *y = 0;
 }
-
