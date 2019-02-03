@@ -146,7 +146,11 @@ void win_init(win_t *win)
 		error(EXIT_FAILURE, 0, "Error opening X display");
 
 	e->scr = DefaultScreen(e->dpy);
-	if (options->embed != 0) {
+
+	/* TODO: replace DIEM_TABBED_TRANS hack with a proper way to detect transparency.
+	   Or make sxiv work on both transparent and non-transparent clients
+	*/
+	if (options->embed != 0 && getenv("DIEM_TABBED_TRANS")) {
 		tpl.screen = e->scr;
 		tpl.depth = 32;
 		tpl.class = TrueColor;
