@@ -471,6 +471,11 @@ void img_render(img_t *img)
 
 	win_clear(win);
 
+	if (options->embed != 0 && getenv("DIEM_TABBED_TRANS")) {
+		img->aa = false;
+		img->alpha = false;
+	}
+
 	imlib_context_set_image(img->im);
 	imlib_context_set_anti_alias(img->aa);
 	imlib_context_set_drawable(win->buf.pm);
@@ -794,4 +799,3 @@ bool img_frame_animate(img_t *img)
 	img->dirty = true;
 	return true;
 }
-
